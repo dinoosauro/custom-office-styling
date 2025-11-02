@@ -165,11 +165,12 @@
                     }
                     if (haveSeriesBeenLoaded) {
                     for (const serie of tempData.series.items) {
-                        serie.format.load({ $all: true, line: { $all: true } });
-                        serie.points.load({
-                            $all: true,
-                            format: { border: { $all: true } },
-                        });
+                        try {
+                            serie.format.load({ $all: true, line: { $all: true } });
+                            serie.points.load({
+                                $all: true,
+                                format: { border: { $all: true } },
+                            });
                             await ctx.sync();
                             for (const point of serie.points.items) {
                                 point.dataLabel.load({$all: true, format: {font: {$all: true}, border: {$all: true}}})
@@ -179,6 +180,9 @@
                                     console.warn(ex);
                                 }
                             }
+                        } catch(ex) {
+                            console.warn(ex);
+                        }
                     }
                     await ctx.sync();
                 }

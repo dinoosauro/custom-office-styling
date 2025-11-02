@@ -17,6 +17,7 @@
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>
+    <Host Name="Workbook"/>
   </Hosts>
   <DefaultSettings>
     <SourceLocation DefaultValue="https://dinoosauro.github.io/custom-office-styling/?ForceOfficeUI=1"/>
