@@ -1,4 +1,4 @@
-# custom-word-styling
+# custom-office-styling
 
 Create custom stylings, edit the built-in ones and update paragraphs on Microsoft Word, both from desktop devices, on the Web and on iPad.
 
@@ -6,7 +6,7 @@ Create custom stylings, edit the built-in ones and update paragraphs on Microsof
 
 ## Installation:
 
-You'll need to sideload this extension by downloading the [CustomWordStyling.xml file](./CustomWordStyling.xml). You can find more info on how to do it on the [custom-word-style's website](https://dinoosauro.github.io/custom-word-styling). 
+You'll need to sideload this extension by downloading the [CustomWordStyling.xml file](./CustomWordStyling.xml). You can find more info on how to do it on the [custom-word-style's website](https://dinoosauro.github.io/custom-office-styling). 
 
 ## Usage
 

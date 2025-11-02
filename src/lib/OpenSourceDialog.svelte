@@ -33,8 +33,8 @@
             </select>
         </div><br>
         <Card secondCard={true}>
-            <h3><u onclick={() => Office.isSetSupported("OpenBrowserWindowApi", "1.1") && Office.context.ui.openBrowserWindow(authorMap.get(selectedLicense)?.url as string)}>{selectedLicense}</u></h3>    
-            {#if !Office.isSetSupported("OpenBrowserWindowApi", "1.1")}
+            <h3><u onclick={() => Office.context.requirements.isSetSupported("OpenBrowserWindowApi", "1.1") && Office.context.ui.openBrowserWindow(authorMap.get(selectedLicense)?.url as string)}>{selectedLicense}</u></h3>    
+            {#if !Office.context.requirements.isSetSupported("OpenBrowserWindowApi", "1.1")}
             <i>{authorMap.get(selectedLicense)?.url}</i><br><br>
             {/if}
             <p>

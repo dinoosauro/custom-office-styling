@@ -12,6 +12,19 @@
     import ParagraphSamePage from "../assets/ParagraphSamePage.gif"
     import Shading from "../assets/Shading.jpg"
     import ListTabPosition from "../assets/ListTabPosition.jpg"
+    import ChartAxis2D from "../assets/ChartAxis2D.jpg"
+    import ChartAxis3D from "../assets/ChartAxis3D.jpg"
+    import ChartAddLabelEveryX from "../assets/ChartAddLabelEveryX.jpg"
+    import ChartRotateLabelAxis from "../assets/ChartRotateLabelAxis.jpg"
+    import ChartLegendShadow from "../assets/ChartLegendShadow.jpg"
+    import ChartDataLabel from "../assets/ChartDataLabel.jpg"
+    import ChartTitleShadow from "../assets/ChartTitleShadow.jpg"
+    import ChartDistanceLength1 from "../assets/ChartDistanceLength1.jpg"
+    import ChartDistanceLength2 from "../assets/ChartDistanceLength2.jpg"
+    import ChartAngle0 from "../assets/ChartAngle0.jpg"
+    import ChartAngle45 from "../assets/ChartAngle45.jpg"
+    import ChartExplosion0 from "../assets/ChartExplosion0.jpg"
+    import ChartExplosion15 from "../assets/ChartExplosion15.jpg"
     import { lang } from "../Scripts/Language";
     const {helperType, callback}: {helperType: HelperType, callback: () => void} = $props();
 </script>
@@ -59,6 +72,46 @@
             <h2>{lang("Tab position")}:</h2>
             <p>{lang("Choose how much tabulation space should be added between the number/bullet point and the first character of the list. If you haven't set it, you might see a really high value. This is normal, but know that usually setting it of a few tens of points is more than enough (since setting it to a high value, like thousands of points, will cause Word to reject the style change")}.<br><b>{lang("Value unit")}:</b> {lang("points")}</p><br>
             <img alt={lang("First item on a list, with a lot of spcae between the number and the first character")} src={ListTabPosition}>
+        {:else if helperType === "ExcelAxisTypes"}
+            <h2>{lang("Axis types")}:</h2>
+            <p>{lang("On Excel, there are two main chart axis types: the \"Value\" one, that usually is the one on the y axis, and the \"Category\" one, that usually is the one on the x axis. On 3D graphs, there might be also another axis (the \"Series\" axis), but in most cases you don't need to touch it.")}</p>
+            <img src={ChartAxis2D} alt="2D Chart"><br>
+            <img src={ChartAxis3D} alt="3D Chart">
+        {:else if helperType === "ExcelAxisLabelEveryX"}
+        <h2>{lang("Add label every")} <i>x</i> {lang("entries")}</h2>
+        <p>{lang("You can choose to show the label of that axis every x entries. For example, in the image below this property was set to 2 in the \"Category\" axis")}.</p>
+        <img src={ChartAddLabelEveryX} alt={lang("Chart where the bottom axis label is shown every two items")}>
+        {:else if helperType === "ExcelAxisRotation"}
+        <h2>{lang("Axis label rotation")}:</h2>
+        <p>{lang("You can change the rotation of the axis labels. In this example, it was set to \"25\". Also negative values are accepted.")}</p>
+        <img src={ChartRotateLabelAxis} alt={lang("Chart where the bottom axis label is slightly rotated")}>
+        {:else if helperType === "ExcelAxisLegendShadow"}
+        <h2>{lang("Legend shadow")}:</h2>
+        <p>{lang("A shadow effect is added to the legend rectangle.")}</p>
+        <img src={ChartLegendShadow} alt={lang("Legend with a shadow effect")}>
+        {:else if helperType === "ExcelDataLabel"}
+        <h2>{lang("Data labels")}:</h2>
+        <p>{lang("Data labels are the labels before each point, that show its value.")}</p>
+        <img src={ChartDataLabel} alt={lang("Data labels")}>
+        {:else if helperType === "ExcelTitleShadow"}
+        <h2>{lang("Title shadow")}:</h2>
+        <p>{lang("Add a shadow to the title border.")}</p>
+        <img src={ChartTitleShadow} alt={lang("Title shadow")}>
+        {:else if helperType === "ExcelDistanceLength"}
+        <h2>{lang("Gap width")}:</h2>
+        <p>{lang("The space that is left between each series. If the number is high, more space will be left. In the first image, this value is set to \"200\", while in the second it's set to \"100\".")}</p>
+        <img src={ChartDistanceLength1} alt={lang("More space between the columns (high number)")}><br>
+        <img src={ChartDistanceLength2} alt={lang("Less space between the columns (low number)")}>
+        {:else if helperType === "ExcelChartAngle"}
+        <h2>{lang("Chart angle")}:</h2>
+        <p>{lang("Change the angle where the chart starts. In the first image, the pie starts normally, while in the second it starts at 45°")}.</p>
+        <img src={ChartAngle0} alt={`${lang("Chart angle")}: 0`}><br>
+        <img src={ChartAngle45} alt={`${lang("Chart angle")}: 45`}>
+        {:else if helperType === "ExcelChartExplosion"}
+        <h2>{lang("Chart explosion")}:</h2>
+        <p>{lang("Add more space in the center of the chart. In the first image, the \"Explosion\" property is set to 0, while in the second one to 15")}.</p>
+        <img src={ChartExplosion0} alt={`${lang("Chart explosion")}: 0`}><br>
+        <img src={ChartExplosion15} alt={`${lang("Chart explosion")}: 15`}>
         {/if}<br>
         <button onclick={() => callback()}>{lang("Close")}</button>
 </div>

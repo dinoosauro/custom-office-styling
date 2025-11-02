@@ -1,6 +1,7 @@
 <script lang="ts">
     import { slide } from "svelte/transition";
-    import PresentationVideo from "./assets/PresentationVideo.mp4";
+    import PresentationVideoWord from "./assets/PresentationVideo-Word.mp4";
+    import PresentationVideoExcel from "./assets/PresentationVideo-Excel.mp4";
     import { cubicInOut } from "svelte/easing";
     import { onMount } from "svelte";
     /**
@@ -11,6 +12,10 @@
      * Download instructions for which OS
      */
     let downloadType = $state("macos");
+    /**
+     * Show the Excel presentation video instead of the Word one
+     */
+    let showExcelVideo = $state(false)
     /**
      * If there's not enough space to center the text, and therefore items must be set to scrollable
      */
@@ -29,6 +34,13 @@
         }
     }
     onMount(() => {
+        try {
+            Office.onReady((host) => {
+                if (host.host) window.location.href = "./?ForceOfficeUI=1";
+            })
+        } catch(ex) {
+            console.warn(ex);
+        }
         window.addEventListener("resize", () => {
             check();
         });
@@ -45,12 +57,12 @@
      */
     async function downloadStyle() {
         const req = await fetch(
-            "https://raw.githubusercontent.com/dinoosauro/custom-word-styling/refs/heads/main/CustomWordStyling.xml",
+            "https://raw.githubusercontent.com/dinoosauro/custom-office-styling/refs/heads/main/CustomOfficeStyling.xml",
         );
         const a = Object.assign(document.createElement("a"), {
             href: URL.createObjectURL(await req.blob()),
             target: "_blank",
-            download: "CustomWordStyling.xml",
+            download: "CustomOfficeStyling.xml",
         });
         a.click();
     }
@@ -63,7 +75,7 @@
             src="./logo_light.svg"
             alt="Website icon. Click on it to go back to the Selection tab"
         />
-        <h2>Custom Word Styling</h2>
+        <h2>Custom Office Styling</h2>
     </div>
     <div
         style={smallSpace
@@ -76,14 +88,14 @@
             >
                 <div>
                     <h1>
-                        Customize the styling of your Word documents, both from
+                        Customize the styling of your Word adnd Excel documents, both from
                         Desktop, Web and iPad
                     </h1>
                     <p>
                         Create some styles you can quickly apply from Word,
-                        import and export them, create new shapes with custom colors and gradients, or just change even the
+                        import and export them, create new shapes with custom colors and gradients, add links to specific parts of your text, or just change even the
                         slightest details of the paragraphs, tables or lists
-                        you've already written. All for free.
+                        you've already written. Moreover, change the properties of Excel charts, and export them as a picture. All for free.
                     </p>
                     <br />
                     <div class="flex gap">
@@ -98,7 +110,7 @@
                         }}
                             >Download now</button
                         >
-                        <button style="width: max-content; background-color: var(--input); white-space: pre" onclick={() => window.open("https://github.com/dinoosauro/custom-word-styling")}>View source code</button>
+                        <button style="width: max-content; background-color: var(--input); white-space: pre" onclick={() => window.open("https://github.com/dinoosauro/custom-office-styling")}>View source code</button>
                     </div>
                 </div>
             </div>
@@ -145,13 +157,13 @@
                             <p>
                                 The sideloading process is quite easy. First,
                                 download the <u onclick={downloadStyle}
-                                    >CustomWordStyle.xml</u
+                                    >CustomOfficeStyle.xml</u
                                 > file. Then:
                             </p>
                             <ul>
                                 <li>
                                     If you're using iPadOS, copy it in the
-                                    "Word" folder in the Files app;
+                                    "Word" or "Excel" folder in the Files app;
                                 </li>
                                 <li>
                                     If you're using macOS, copy it in the folder
@@ -163,7 +175,10 @@
                                                     .textContent,
                                             )}
                                         >./Library/Containers/com.microsoft.Word/Data/Documents/wef</code
-                                    >
+                                    ><br>
+                                    <ul>
+                                        <li style="font-size: 0.9em;">If you want to sideload it to Excel, just change <code>com.microsoft.Word</code> with <code>com.microsoft.Excel</code></li>
+                                    </ul>
                                 </li>
                             </ul>
                             <p>Now, close Word and reopen it. You'll find the add-in in the "Add-ins" button of the Home tab.</p>
@@ -180,14 +195,14 @@
                             <ul>
                                 <li>
                                     Download the <u onclick={downloadStyle}
-                                        >CustomWordStyle.xml</u
+                                        >CustomOfficeStyle.xml</u
                                     >
                                     file and save it in the
-                                    <code>CustomWordStyling</code> folder
+                                    <code>CustomOfficeStyling</code> folder
                                 </li>
                                 <li>
                                     Right-click the <code
-                                        >CustomWordStyling</code
+                                        >CustomOfficeStyling</code
                                     > folder, click on "Properties" -> "Sharing"
                                     -> "Advanced sharing"
                                 </li>
@@ -196,7 +211,7 @@
                                     apply the changes. This will make the
                                     content of the folder public to other users
                                     on your network, so keep only the
-                                    CustomWordStyle file there
+                                    CustomOfficeStyle file there
                                 </li>
                                 <li>
                                     Open the Registry editor, and go to: <code
@@ -218,12 +233,12 @@
                                     folder
                                 </li>
                                 <li>
-                                    Open Word, and from the Home tab select
+                                    Open Word or Excel, and from the Home tab select
                                     "Add-ins". Click on "More add-ins", then in
                                     the new pop-up on "Shared folder"
                                 </li>
                                 <li>
-                                    Select the "Custom Word Styling" extension,
+                                    Select the "Custom Office Styling" extension,
                                     and install it.
                                 </li>
                             </ul>
@@ -237,7 +252,7 @@
                             <ul>
                                 <li>
                                     Download the <u onclick={downloadStyle}
-                                        >CustomWordStyle.xml</u
+                                        >CustomOfficeStyle.xml</u
                                     > file
                                 </li>
                                 <li>
@@ -250,7 +265,7 @@
                                 </li>
                                 <li>
                                     Click "Upload my add-in", and select the <code
-                                        >CustomWordStyle.xml</code
+                                        >CustomOfficeStyle.xml</code
                                     > file
                                 </li>
                             </ul>
@@ -258,11 +273,11 @@
                     {/if}
                     <p>
                         This add-in is completely <a
-                            href="https://github.com/dinoosauro/custom-word-styling"
+                            href="https://github.com/dinoosauro/custom-office-styling"
                             target="_blank">open source</a
                         >.
                     </p>
-                    <i style="font-size: 0.6em;">Word, Windows and Office are trademarks of Microsoft, which is in no way affiliated with this project.<br>iPad, iPadOS and macOS are trademarks of Apple, which is in no way affiliated with this project.</i>
+                    <i style="font-size: 0.6em;">Word, Excel, Windows and Office are trademarks of Microsoft, which is in no way affiliated with this project.<br>iPad, iPadOS and macOS are trademarks of Apple, which is in no way affiliated with this project.</i>
                 </div>
             </div>
         {/if}
@@ -270,7 +285,31 @@
             class={smallSpace ? "miniWidth fullWidth marginTop wcenter" : "presentation miniWidth floatRight wright"}
             style="display: flex"
         >
-            <video src={PresentationVideo} autoplay muted loop></video>
+        <div class="wcenter" style="display: flex; flex-direction: column">
+                                <div class="flex gap wcenter" style="overflow: auto; margin-bottom: 10px">
+                        <span
+                            onclick={() => (showExcelVideo = false)}
+                            class="card secondCard chip"
+                            style={!showExcelVideo
+                                ? "background-color: var(--accent)"
+                                : undefined}
+                        >
+                            Word video
+                        </span>
+                        <span
+                            onclick={() => (showExcelVideo = true)}
+                            class="card secondCard chip"
+                            style={showExcelVideo
+                                ? "background-color: var(--accent)"
+                                : undefined}
+                        >
+                            Excel video
+                            </span>
+                            </div>
+                            <div class="flex wcenter" style="width: 100%">
+                                <video src={showExcelVideo ? PresentationVideoExcel : PresentationVideoWord} autoplay muted loop></video>
+                            </div>
+            </div>
         </div>
     </div>
 </main>

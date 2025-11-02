@@ -1,0 +1,904 @@
+<script lang="ts">
+  import AddStyleDialog from "./lib/AddStyleDialog.svelte";
+  import FontChange from "./lib/FontChange.svelte";
+  import ParagraphChange from "./lib/ParagraphChange.svelte";
+  import BorderChange from "./lib/BorderChange.svelte";
+  import ShadingChange from "./lib/ShadingChange.svelte";
+  import TableChange from "./lib/TableChange.svelte";
+  import ListOrderChange from "./lib/ListOrderChange.svelte";
+  import ImportStyles from "./Scripts/ImportStyles";
+  import ExportStyles from "./Scripts/ExportStyles";
+    import NormalItemChange from "./lib/NormalItemChange.svelte";
+    import type { HelperType } from "../Scripts/HelperType";
+    import HelperDialogs from "../lib/HelperDialogs.svelte";
+    import { lang } from "../Scripts/Language";
+    import ParagraphListEdit from "./lib/ParagraphListEdit.svelte";
+    import Card from "../lib/Card.svelte";
+    import AddShapeMainContent from "./lib/AddShapeMainContent.svelte";
+    import EditTableCell from "./lib/EditTableCell.svelte";
+    import EditSelectedShape from "./lib/EditSelectedShape.svelte";
+    import CustomizeContentControl from "./lib/CustomizeContentControl.svelte";
+    let {downloadLink}: {
+    downloadLink: string | false
+    } = $props();
+          /**
+   * The section of the add-in that is being displayed
+   */
+  let appSection:
+    | "none"
+    | "styleChange"
+    | "paragraphChange"
+    | "styleApply"
+    | "styleExport"
+    | "newShape"
+    | "contentControl" = $state("none");
+  /**
+   * The currently-selected style that is being edited.
+   *
+   * **Applies to:** `styleChange` section
+   */
+  let index = $state(-1);
+  /**
+   * The `items` property of the StyleCollection fetched from Word API.
+   * This object is provided only so that the style name can be read, but must not be used, since updating a property there would also change it in Word, making the "Discard" function useless.
+   */
+  let referenceItems: Word.Style[] = [];
+  /**
+   * Deep clone of `referenceItems`, generated gradually while the user changes the selection.
+   */
+  let availableItems: Word.Style[] = [];
+  /**
+   * The custom styling tab that was chosen by the user.
+   *
+   * **Applies to:** `styleChange` section
+   */
+  let currentlyChosenTab:
+    | "border"
+    | "font"
+    | "list"
+    | "paragraph"
+    | "shading"
+    | "table"
+    | "general" = $state("font");
+  /**
+   * If the dialog to add a new style should be visible
+   */
+  let showAddDialog = $state(false);
+  /**
+   * The string that is used for the select in the `styleChange` section. It should be changed after the `referenceItem` list has been changed, so that a re-render of the options inside the select can be triggered.
+   */
+  let rerenderSelect = $state(`SelectBlock-${Date.now()}`);
+  /**
+   * If changed, it'll re-render everything except the header.
+   */
+  let forceReRender = $state(`Entire-${Date.now()}`);
+  /**
+   * If the `List` tab of the currently-selected style should be one of the pickable tabs.
+   *
+   * **Applies to:** `styleChange` tab
+   */
+  let shouldListTabBeVisible = $state(false);
+  /**
+   * An array of bool values. If true, the style at that position should be exported.
+   *
+   * **Applies to:** `styleExport` tab
+   */
+  let propertiesToExport: boolean[] = [];
+  /**
+   * Possible options when importing a custom style
+   *
+   * **Applies to:** `styleApply` tab
+   */
+  let mergeStyleOption: "CreateNew" | "Overwrite" | "Ignore" = "Overwrite";
+  /**
+   * Information about the text selected by the user, used so that it can be customized in the `paragraphChange` section.
+   *
+   * **Applies to:** `paragraphChange` tab
+   */
+  let selectedParagraph: {
+    font: Word.Font;
+    paragraphs: Word.Paragraph[];
+    lists: Word.List[],
+    tables: Word.Table[],
+    shapes: Word.Shape[]
+  };
+  /**
+   * The style that should be applied to the selected text.
+   *
+   * **Applies to:** `styleApply` tab
+   */
+  let selectedChangeStyle = "0";
+  /**
+   * If not undefined, a dialog with some useful information will be shown.
+   */
+  let helperProp: HelperType | undefined = $state(undefined);
+  /**
+   * Update the `availableItems` property with the clone of the style selected by the user
+   * @param nextIndex the position in the `referenceItems` object of the item to clone
+   * @param ctx the Context used to get the content inside `referenceItems`
+   */
+  async function getIndexReady(nextIndex: number, ctx: Word.RequestContext) {
+    // @ts-ignore
+    referenceItems[nextIndex].load({$all: true, borders: true, font: true, listTemplate: true, paragraphFormat: true, shading: true, tableStyle: true});
+    await ctx.sync();
+    referenceItems[nextIndex].listTemplate.listLevels.load();
+    await ctx.sync();
+    let items = referenceItems[nextIndex].listTemplate.listLevels.items;
+    if (items) {
+      // We'll deep clone also its font, and we'll add it manually in the JSON file since by default they're discarded
+      let prevFont: Word.Font[] = items.map((i) => i?.font);
+      items = JSON.parse(JSON.stringify(items));
+      for (let i = 0; i < items.length; i++) {
+        // @ts-ignore
+        if (prevFont[i]) items[i].font = JSON.parse(JSON.stringify(prevFont[i]));
+      }
+    }
+    // Now we'll deep clone the object
+    availableItems[nextIndex] = JSON.parse(
+      JSON.stringify(referenceItems[nextIndex]),
+    );
+    // @ts-ignore
+    if (items !== undefined) availableItems[nextIndex].listTemplate.listLevels = { items };
+    // @ts-ignore
+    if (referenceItems[nextIndex].borders.items?.length > 0) availableItems[nextIndex].borders = {
+      items: JSON.parse(JSON.stringify(referenceItems[nextIndex].borders.items)),
+      insideBorderColor: referenceItems[nextIndex].borders.insideBorderColor,
+      insideBorderWidth: referenceItems[nextIndex].borders.insideBorderWidth,
+      insideBorderType: referenceItems[nextIndex].borders.insideBorderType,
+      outsideBorderColor: referenceItems[nextIndex].borders.outsideBorderColor,
+      outsideBorderWidth: referenceItems[nextIndex].borders.outsideBorderWidth,
+      outsideBorderType: referenceItems[nextIndex].borders.outsideBorderType,
+    }
+    shouldListTabBeVisible =
+      Array.isArray(availableItems[nextIndex].listTemplate.listLevels.items) &&
+      availableItems[nextIndex].listTemplate.listLevels.items.length > 0; // Update the "list" tab visibility by checking that there's at least one list item that can be edited
+    index = nextIndex; // And **finally** update the index.
+  }
+  /**
+   * Get all the styles
+   * @param suggestedIndex set the style at this index as the selected one
+   */
+  async function loadStyle(suggestedIndex = 0) {
+    await Word.run(async (ctx) => {
+      const styles = ctx.document.getStyles().load();
+      await ctx.sync();
+      referenceItems = styles.items;
+      suggestedIndex !== -1 && (await getIndexReady(suggestedIndex, ctx));
+    });
+  }
+  /**
+   * A Spinner element at the center of the page
+   */
+  const spinner = document.createElement("div");
+  spinner.classList.add("spinner");
+  /**
+   * Update the `selectParagraph` property by getting the text the user has selected, and update the app section
+   */
+  async function getSelection() {
+    await Word.run(async (ctx) => {
+      let paragraph = ctx.document.getSelection().load();
+      paragraph.font.load();
+      paragraph.paragraphs.load();
+      paragraph.lists.load();
+      paragraph.tables.load();
+      // @ts-ignore
+      paragraph.shapes.load({$all: true, textFrame: true, textWrap: true, fill: true});
+      await ctx.sync();
+      selectedParagraph = {
+        paragraphs: JSON.parse(JSON.stringify(paragraph.paragraphs.items)),
+        font: JSON.parse(JSON.stringify(paragraph.font)),
+        lists: JSON.parse(JSON.stringify(paragraph.lists.items)),
+        tables: JSON.parse(JSON.stringify(paragraph.tables.items)),
+        shapes: JSON.parse(JSON.stringify(paragraph.shapes.items))
+      };
+      appSection = "paragraphChange";
+    });
+  }
+
+  // Field section variables
+
+  let fieldType = "Page";
+  let extraFieldFlags = "";
+
+  // Bookmark section variables 
+
+  /**
+   * The name of the bookmark to add in the document
+   */
+  let bookmarkName = "";
+  /**
+   * The list of the available bookmarks. The first element in the array is the displayed name, the second element its value.
+   */
+  let bookmarkOptions: {bookmarks: [string, string][], titles: [string, string][]} = $state({bookmarks: [], titles: []});
+  let fetchTableOfContents = true;
+  /**
+   * The bookmark ID that should be linked with the current selection.
+   */
+  let selectedBookmark = "";
+
+  /**
+   * The content control to add
+   */
+  let selectedContentControl = "CheckBox";
+  /**
+   * The content control that has been selected by the user in the document
+   */
+  let selectedContentControlItem: Word.ContentControl;
+</script>
+
+
+{#key forceReRender}
+  <div>
+    {#if appSection === "none"}
+      <Card>
+        <h2>{lang("Change styles")}:</h2>
+        <p>{lang("Change the styles of your document, and create new ones.")}</p>
+        <button
+          onclick={async () => {
+            document.body.append(spinner);
+            setTimeout(async () => {
+              await loadStyle();
+              appSection = "styleChange";
+              spinner.remove();
+            }, 1);
+          }}>{lang("Load styles")}</button
+        >
+      </Card>
+      <br />
+      <Card>
+        <h2>{lang("Apply style")}:</h2>
+        <p>{lang("Apply a style to the text you've selected on Word")}.</p>
+        <button
+          onclick={async () => {
+            document.body.append(spinner);
+            setTimeout(async () => {
+              await loadStyle(-1);
+              appSection = "styleApply";
+              spinner.remove();
+            }, 1);
+          }}>{lang("Load styles")}</button
+        >
+      </Card>
+      <br />
+      <Card>
+        <h2>{lang("Change selection")}:</h2>
+        <p>{lang("Change how the selected text looks, without creating a new style")}.</p>
+        <button
+          onclick={async () => {
+            document.body.append(spinner);
+            setTimeout(async () => {
+              await getSelection();
+              spinner.remove();
+            }, 1);
+          }}>{lang("Get selection")}</button
+        >
+      </Card><br>
+      <Card>
+        <h2>{lang("Add field")}:</h2>
+        <p>{lang("Add a dynamic variable in your document")}.</p>
+        <label class="flex hcenter gap">
+          {lang("Variable type")}: 
+                    <div class="selectContainer">
+<select bind:value={fieldType}>
+            {#each ["Addin","AddressBlock","Advance","Ask","Author","AutoText","AutoTextList","BarCode","Bibliography","BidiOutline","Citation","Comments","Compare","CreateDate","Data","Database","Date","DisplayBarcode","DocProperty","DocVariable","EditTime","Embedded","EQ","Expression","FileName","FileSize","FillIn","FormCheckbox","FormDropdown","FormText","GotoButton","GreetingLine","Hyperlink","If","Import","Include","IncludePicture","IncludeText","Index","Info","Keywords","LastSavedBy","Link","ListNum","MacroButton","MergeBarcode","MergeField","MergeRec","MergeSeq","Next","NextIf","NoteRef","NumChars","NumPages","NumWords","OCX","Page","PageRef","Print","PrintDate","Private","Quote","RD","Ref","RevNum","SaveDate","Section","SectionPages","Seq","Set","Shape","SkipIf","StyleRef","Subject","Subscriber","Symbol","TA","TC","Template","Time","Title","TOA","TOC","UserAddress","UserInitials","UserName","XE","Empty"] as option}
+            <option value={option}>{option}</option>
+            {/each}
+          </select>
+          </div>
+        </label><br>
+        <label class="flex hcenter gap">
+          {lang("Flags")}: <input type="text" bind:value={extraFieldFlags}>
+        </label><br>
+        <button onclick={() => {
+          document.body.append(spinner);
+          setTimeout(async () => {
+            await Word.run(async (ctx) => {
+              ctx.document.getSelection().getRange().insertField("After", fieldType as "Page", extraFieldFlags);
+              await ctx.sync();
+            });
+            spinner.remove();
+          }, 1)
+        }}>{lang("Add field")}</button>
+      </Card><br>
+      <Card>
+        <h2>{lang("Bookmarks")}:</h2>
+        <p>{lang("Add a bookmark, or link the selected text to an already-existing bookmark")}</p>
+        <Card secondCard={true}>
+          <h3>{lang("Create bookmark")}:</h3>
+          <label class="flex hcenter gap">
+            {lang("Bookmark name")}: <input type="text" bind:value={bookmarkName}>
+          </label><br>
+          <button onclick={() => {
+            document.body.append(spinner);
+            setTimeout(async () => {
+              await Word.run(async (ctx) => {
+                ctx.document.getSelection().insertBookmark(bookmarkName);
+                await ctx.sync();
+              });
+              spinner.remove();
+            }, 1);
+          }}>{lang("Add bookmark")}</button>
+        </Card><br>
+        <Card secondCard={true}>
+          <h3>{lang("Update link")}:</h3>
+          <p>{lang("Choose either a bookmark or a heading. The link will be added to all the selected text")}.</p>
+          <label class="flex hcenter gap">
+                      <div class="selectContainer">
+            <select bind:value={selectedBookmark}>
+              <optgroup label={lang("Bookmarks")}>
+                {#each bookmarkOptions.bookmarks as [display, value]}
+                <option value={value}>{display}</option>
+                {/each}
+              </optgroup>
+              <optgroup label={lang("Headings")}>
+                {#each bookmarkOptions.titles as [display, value]}
+                <option value={value}>{display}</option>
+                {/each}
+              </optgroup>
+              <optgroup label={lang("Other")}>
+                <option value="_top">{lang("Top of the page")}</option>
+              </optgroup>
+            </select>
+            </div>
+          <button style="width: fit-content;" onclick={() => {
+            document.body.append(spinner);
+            setTimeout(async () => {
+            await Word.run(async (ctx) => {
+              // While we can get bookmarks fairly easily, we can't do the same with the document titles, since we also need their Table of Contents ID. So, we need to get the OOXML source, and then look at the hyperlinks from there.
+              const bookmarks = ctx.document.body.getRange().getBookmarks(false, true);
+              /**
+               * String array composed of [the title, the Table of Contents ID]
+               */
+              const titles: [string, string][] = [];
+              if (fetchTableOfContents) {
+                const ooxml = ctx.document.body.getRange().getOoxml();
+                await ctx.sync();
+                const parsedXml = new DOMParser().parseFromString(ooxml.value, "application/xml");
+                for (const tocItem of parsedXml.getElementsByTagName("w:hyperlink")) {
+                  const anchor = tocItem.getAttribute("w:anchor");
+                  if (anchor?.startsWith("_Toc") && titles.findIndex(i => i[1] === anchor) === -1) titles.push([tocItem.getElementsByTagName("w:t")[0].textContent, anchor]);
+                }
+              }
+              bookmarkOptions = {
+                bookmarks: bookmarks.value.map(i => [i, i.replace(/ /g, "_")]),
+                titles
+              }
+            });
+            spinner.remove();
+            }, 1);
+          }}>{lang("Refresh list")}</button>
+          </label><br>
+          <label class="flex hcenter gap">
+            <input type="checkbox" bind:checked={fetchTableOfContents}>{lang("While refreshing, get also titles from the table of content. Disable if you're facing issues.")}
+          </label><br>
+          <button onclick={() => {
+            document.body.append(spinner);
+            setTimeout(async () => {
+              await Word.run(async (ctx) => {
+                ctx.document.getSelection().hyperlink = `#${selectedBookmark}`;
+                await ctx.sync();
+              });
+              spinner.remove();
+            })
+          }}>{lang("Add hyperlink")}</button>
+        </Card>
+      </Card><br>
+      <Card>
+        <h2>{lang("Add content control")}</h2>
+        <p>{lang("Add comboboxes, checkboxes etc. on your Word document. You can customize them with the \"Customize Content Control\" card below")}</p>
+        <label class="flex hcenter gap">
+          {lang("Add")}: <div class="selectContainer">
+            <select bind:value={selectedContentControl}>
+              {#each ["RichText", "PlainText", "CheckBox", "DropDownList", "ComboBox"] as option}
+              <option value={option}>{option}</option>
+              {/each}
+            </select>
+          </div>
+        </label><br>
+        <button onclick={() => {
+            document.body.append(spinner);
+            setTimeout(() => {
+              Word.run(async (ctx) => {
+                ctx.document.getSelection().insertContentControl(selectedContentControl as "CheckBox");
+                await ctx.sync();
+                spinner.remove();
+              })
+            }, 1)
+        }}>{lang("Add")}</button>
+      </Card><br>
+      <Card>
+        <h2>{lang("Customize content control")}</h2>
+        <p>{lang("Change some properties of the content control")}</p>
+        <button onclick={() => {
+          document.body.append(spinner);
+          setTimeout(() => {
+            Word.run(async (ctx) => {
+              const contentControl = ctx.document.getSelection().getContentControls().load({$all: true, font: {$all: true}});
+              await ctx.sync();
+                if (contentControl.items[0].type === "ComboBox") {
+                  contentControl.items[0].comboBoxContentControl.load();
+                  contentControl.items[0].comboBoxContentControl.listItems.load();
+                }
+                if (contentControl.items[0].type === "CheckBox") contentControl.items[0].checkboxContentControl.load();
+                if (contentControl.items[0].type === "DropDownList") {
+                  contentControl.items[0].dropDownListContentControl.load();
+                  contentControl.items[0].dropDownListContentControl.listItems.load({$all: true})
+                }
+                await ctx.sync();
+              selectedContentControlItem = JSON.parse(JSON.stringify(contentControl.items[0]));
+              appSection = "contentControl";
+              spinner.remove();
+            })
+          }, 1)
+        }}>{lang("Get selected content controls")}</button>
+      </Card><br>
+      <Card>
+        <h2>{lang("Customize shapes")}:</h2>
+        <p>{lang("Create a new shape with a custom border radius, background color (both plain and gradient) or background image")}.</p>
+        <button onclick={() => (appSection = "newShape")}>{lang("Create new shape")}</button>
+      </Card>
+      <br />
+      <Card>
+        <h2>{lang("Export styles")}:</h2>
+        <p>{lang("You'll be able to choose which styles to export in a JSON file")}.</p>
+        <button
+          onclick={async () => {
+            document.body.append(spinner);
+            setTimeout(async () => {
+              await loadStyle(0);
+              appSection = "styleExport";
+              spinner.remove();
+            }, 1);
+          }}>{lang("Export styles")}</button
+        >
+      </Card>
+      <br />
+      <Card>
+        <h2>{lang("Import styles")}</h2>
+        <p>
+          {lang("If you've exported a JSON file before, you can import its styles here")}.
+        </p>
+        <label class="flex hcenter gap">
+          {lang("If a style with the same name is found")},
+          <div class="selectContainer">
+            <select bind:value={mergeStyleOption}>
+              <option value="Overwrite">{lang("overwrite it")}</option>
+              <option value="Ignore">{lang("ignore it")}</option>
+              <option value="CreateNew">{lang("keep both of them")}</option>
+            </select>
+          </div>
+        </label><br />
+        <button
+          onclick={() => ImportStyles(mergeStyleOption)}>{lang("Pick JSON file")}</button
+        >
+     </Card>
+    {:else if appSection === "styleChange"}
+      <div class="flex hcenter gap">
+        {#key rerenderSelect}
+          <div class="selectContainer">
+            <select
+              onchange={async (e) => {
+                document.body.append(spinner);
+                setTimeout(async () => {
+                  await loadStyle(+(e.target as HTMLSelectElement).value);
+                  spinner.remove();
+                }, 0);
+              }}
+            >
+              {#each referenceItems as item, i}
+                <option value={i}>{item.nameLocal}</option>
+              {/each}
+            </select>
+          </div>
+        {/key}
+        <button
+          style="width: fit-content"
+          onclick={() => {
+            showAddDialog = true;
+          }}>+</button
+        >
+      </div>
+      <br />
+      <Card>
+        <div class="flex gap" style="overflow: auto">
+          {#each [["font", "Font options"], ["paragraph", "Paragraph options"], ["border", "Border options"], ["general", "General options"], ["shading", "Shading options"], ...(availableItems[index].type === "Table" ? [["table", "Table options"]] : []), ...(shouldListTabBeVisible ? [["list", "List options"]] : [])] as [key, title]}
+            <button
+              class="card secondCard chip"
+              style={currentlyChosenTab === key
+                ? "background-color: var(--accent)"
+                : "background-color: var(--input)"}
+              onclick={() => (currentlyChosenTab = key as "list")}
+            >
+              {lang(title)}
+            </button>
+          {/each}
+        </div>
+      </Card>
+      <br />
+      {#if currentlyChosenTab === "font"}
+        <Card>
+          <h2>{lang("Font")}:</h2>
+          <FontChange sourceFont={availableItems[index].font}></FontChange>
+        </Card>
+      {/if}
+      {#if currentlyChosenTab === "paragraph"}
+        <Card>
+          <h2>{lang("Paragraph")}:</h2>
+          <ParagraphChange
+            isParagraphFormat={true}
+            sourceParagraph={availableItems[index].paragraphFormat}
+          ></ParagraphChange>
+        </Card>
+      {/if}
+      {#if currentlyChosenTab === "border"}
+        <Card>
+          <h2>{lang("Border")}:</h2>
+          <BorderChange sourceBorder={availableItems[index].borders}
+          ></BorderChange>
+        </Card>
+      {/if}
+      {#if currentlyChosenTab === "shading"}
+        <Card>
+          <h2><span class="help" onclick={() => (helperProp = "Shading")}>{lang("Shading (background color)")}:</span></h2>
+          <ShadingChange sourceShading={availableItems[index].shading}
+          ></ShadingChange>
+        </Card>
+      {/if}
+      {#if currentlyChosenTab === "table"}
+        <Card>
+          <h2>{lang("Table")}:</h2>
+          <TableChange sourceTable={availableItems[index].tableStyle}
+          ></TableChange>
+        </Card>
+      {/if}
+      {#if shouldListTabBeVisible && currentlyChosenTab === "list"}
+        <Card>
+          <h2>{lang("List order")}:</h2>
+          <ListOrderChange sourceList={availableItems[index].listTemplate}
+          ></ListOrderChange>
+        </Card>
+      {/if}
+      {#if currentlyChosenTab === "general"}
+        <Card>
+          <h2>{lang("General options")}:</h2>
+          <NormalItemChange generalStyle={availableItems[index]}></NormalItemChange>
+        </Card>
+      {/if}
+      <br /><br />
+      <button
+        onclick={async () => {
+          document.body.append(spinner);
+          setTimeout(async () => {
+            await Word.run(async (ctx) => {
+              document.body.append(spinner);
+              const styles = ctx.document.getStyles().load();
+              await ctx.sync();
+              // Update the entries in the real Style object.
+              for (const entry of [
+                "borders",
+                "font",
+                "paragraphFormat",
+                "shading",
+                "tableStyle",
+              ]) {
+                const obj = styles.items[index][entry as "font"].load();
+                await ctx.sync();
+                for (const key in availableItems[index][entry as "font"]) {
+                  if (Array.isArray(availableItems[index][entry as "borders"][key as "items"])) {
+                    for (let i = 0; i < availableItems[index][entry as "borders"][key as "items"].length; i++) {
+                      for (const secondKey in availableItems[index][entry as "borders"][key as "items"][i]) {
+                        try {
+                          if ((obj as unknown as Word.BorderCollection)[key as "items"][i][secondKey as "visible"] !== availableItems[index][entry as "borders"][key as "items"][i][secondKey as "visible"]) (obj as unknown as Word.BorderCollection)[key as "items"][i][secondKey as "visible"] = availableItems[index][entry as "borders"][key as "items"][i][secondKey as "visible"];
+                        } catch (ex) {
+                          console.warn(ex);
+                        }
+                      }
+                    }
+                  } else {
+                    try {
+                     if (obj[key as "size"] !== availableItems[index][entry as "font"][key as "size"]) obj[key as "size"] = availableItems[index][entry as "font"][key as "size"];
+                    } catch (ex) {
+                      console.warn(ex);
+                    }
+                  }
+                }
+                await ctx.sync();
+              }
+              if (shouldListTabBeVisible) {
+                // Update also the content for each list level
+                styles.items[index].listTemplate.listLevels.load();
+                await ctx.sync();
+                for (
+                  let i = 0;
+                  i <
+                  availableItems[index].listTemplate.listLevels.items.length;
+                  i++
+                ) {
+                  for (const key in availableItems[index].listTemplate
+                    .listLevels.items[i]) {
+                    if (key === "font") {
+                      for (const fontKey in availableItems[index].listTemplate
+                        .listLevels.items[i].font) {
+                        styles.items[index].listTemplate.listLevels.items[
+                          i
+                        ].font[key as "size"] =
+                          availableItems[index].listTemplate.listLevels.items[
+                            i
+                          ].font[fontKey as "size"];
+                          await ctx.sync();
+                      }
+                    } else {
+                      if (styles.items[index].listTemplate.listLevels.items[i][
+                        key as "numberFormat"
+                      ] !==
+                        availableItems[index].listTemplate.listLevels.items[i][
+                          key as "numberFormat"
+                        ]) styles.items[index].listTemplate.listLevels.items[i][
+                        key as "numberFormat"
+                      ] =
+                        availableItems[index].listTemplate.listLevels.items[i][
+                          key as "numberFormat"
+                        ];
+                        await ctx.sync();
+                    }
+                  }
+                  await ctx.sync();
+                }
+              }
+              // Let's update also the basic properties of the style
+              for (const property of ["baseStyle","nextParagraphStyle","priority","quickStyle","unhideWhenUsed","visibility"]) {
+                if (styles.items[index][property as "baseStyle"] !== availableItems[index][property as "baseStyle"]) styles.items[index][property as "baseStyle"] = availableItems[index][property as "baseStyle"];
+                  await ctx.sync();
+              }
+              await ctx.sync();
+              spinner.remove();
+            });
+          }, 1);
+        }}>{lang("Save")}</button
+      ><br /><br />
+      <u
+        class="discard"
+        onclick={async () => {
+          document.body.append(spinner);
+          setTimeout(async () => {
+            // To discard it, we'll just load again the values
+            await loadStyle(Math.max(0, index));
+            forceReRender = `Entire-${Date.now()}`;
+            spinner.remove();
+          }, 1);
+        }}>{lang("Discard edits")}</u
+      >
+    {:else if appSection === "styleApply"}
+      <label class="flex hcenter gap">
+        {lang("Apply this style")}:
+        <div class="selectContainer">
+          <select bind:value={selectedChangeStyle}>
+            {#each referenceItems as item, i}
+              <option value={i}>{item.nameLocal}</option>
+            {/each}
+          </select>
+        </div>
+      </label><br />
+      <button
+        onclick={async () => {
+          document.body.append(spinner);
+          setTimeout(async () => {
+            await Word.run(async (ctx) => {
+              const selection = ctx.document.getSelection().load();
+              await ctx.sync();
+              selection.style = referenceItems[+selectedChangeStyle].nameLocal;
+              await ctx.sync();
+              spinner.remove();
+            });
+          }, 1);
+        }}>{lang("Apply")}</button
+      >
+    {:else if appSection === "paragraphChange"}
+      <Card>
+        <h2>{lang("Font")}:</h2>
+        <FontChange sourceFont={selectedParagraph.font}></FontChange>
+      </Card>
+      <br />
+      {#if selectedParagraph.paragraphs?.length > 0}
+        <Card>
+          <h2>{lang("Paragraph")}:</h2>
+          <ParagraphChange
+            isParagraphFormat={false}
+            sourceParagraph={selectedParagraph.paragraphs[0]}
+          ></ParagraphChange>
+        </Card>
+      {/if}
+      {#if selectedParagraph.lists?.length > 0}
+      <br>
+      <Card>
+        <h2>{lang("Lists")}:</h2>
+        <ParagraphListEdit></ParagraphListEdit>
+      </Card>
+      {/if}
+      {#if selectedParagraph.tables?.length > 0}
+      <br>
+      <Card>
+        <h2>{lang("Table")}:</h2>
+        <EditTableCell table={selectedParagraph.tables[0]}></EditTableCell>
+      </Card>
+      {/if}
+      {#if selectedParagraph.shapes?.length > 0}
+      <br>
+      <Card>
+        <h2>{lang("Shapes")}:</h2>
+        <EditSelectedShape shape={selectedParagraph.shapes[0]}></EditSelectedShape>
+      </Card>
+      {/if}
+      <br />
+      <button
+        onclick={async () => {
+          document.body.append(spinner);
+          setTimeout(async () => {
+            await Word.run(async (ctx) => {
+              // Get the select range, and change the font and paragraph properties
+              const range = ctx.document.getSelection().load();
+              const font = range.font.load();
+              await ctx.sync();
+              for (const key in selectedParagraph.font) {
+                try {
+                  if (font[key as "size"] !== selectedParagraph.font[key as "size"]) {
+                    font[key as "size"] = selectedParagraph.font[key as "size"];
+                  }
+                } catch (ex) {
+                  console.warn(ex);
+                }
+              }
+              await ctx.sync();
+              if (selectedParagraph.paragraphs.length > 0) {
+                const paragraphs = range.paragraphs.load();
+                await ctx.sync();
+                if (paragraphs.items?.length > 0) {
+                  for (const paragraph of paragraphs.items) {
+                    // Change all the paragraphs
+                    for (const property of [
+                      "alignment",
+                      "firstLineIndent",
+                      "outlineLevel",
+                      "leftIndent",
+                      "rightIndent",
+                      "lineSpacing",
+                      "spaceBefore",
+                      "spaceAfter",
+                    ]) {
+                      if (paragraph[property as "spaceBefore"] !== selectedParagraph.paragraphs[0][
+                          property as "spaceBefore"
+                        ]) {
+                          paragraph[property as "spaceBefore"] =
+                        selectedParagraph.paragraphs[0][
+                          property as "spaceBefore"
+                        ];
+                        }
+                    }
+                    await ctx.sync();
+                  }
+                }
+              }
+              // Update tables
+              if (selectedParagraph.tables?.length > 0) {
+                const tables = range.tables.load();
+                await ctx.sync();
+                for (const table of tables.items) {
+                  for (const prop of ["alignment", "verticalAlignment", "horizontalAlignment"]) {
+                    if (table[prop as "alignment"] !== selectedParagraph.tables[0][prop as "alignment"]) table[prop as "alignment"] = selectedParagraph.tables[0][prop as "alignment"];
+                  }
+                }
+                await ctx.sync();
+              }
+              // Update shapes
+              if (selectedParagraph.shapes?.length > 0) {
+                // @ts-ignore
+                const shapes = range.shapes.load({$all: true, textFrame: true, textWrap: true, fill: true});
+                await ctx.sync();
+                for (const shape of shapes.items) {
+                  shape.lockAspectRatio = false;
+                  for (const prop in selectedParagraph.shapes[0]) {
+                    if (typeof shape[prop as "fill"] === "object") { // Nested object to update
+                      for (const secondProp in selectedParagraph.shapes[0][prop as "fill"]) {
+                        if (secondProp === "textWrap" || secondProp === "hasText") continue; // Fix NotAllowed error
+                        if (shape[prop as "fill"][secondProp as "transparency"] !== selectedParagraph.shapes[0][prop as "fill"][secondProp as "transparency"]) shape[prop as "fill"][secondProp as "transparency"] = selectedParagraph.shapes[0][prop as "fill"][secondProp as "transparency"];
+                      await ctx.sync();
+                      }
+                    } else {
+                      if (prop.startsWith("relative") || prop.endsWith("Relative")) continue;
+                      if (shape[prop as "height"] !== selectedParagraph.shapes[0][prop as "height"]) {
+                        shape[prop as "height"] = selectedParagraph.shapes[0][prop as "height"];
+                      }
+                    }
+                  }
+                  await ctx.sync();
+                }
+              }
+              spinner.remove();
+            });
+          }, 1);
+        }}>{lang("Apply changes")}</button
+      ><br /><br />
+      <u
+        class="discard"
+        onclick={async () => {
+          document.body.append(spinner);
+          setTimeout(async () => {
+            await getSelection();
+            forceReRender = `Entire-${Date.now()}`;
+            spinner.remove();
+          }, 1);
+        }}>{lang("Discard edits")}</u
+      >
+    {:else if appSection === "styleExport"}
+      <p>
+        {lang("Pick the properties you want to export. To avoid freezes when importing, choose only the properties you've changed.")}
+      </p>
+      <div>
+      {#each referenceItems as item, i}
+        <label class="flex hcenter gap">
+          <input type="checkbox" bind:checked={propertiesToExport[i]} />
+          {item.nameLocal}
+        </label><br />
+      {/each}
+      </div><br>
+      <div class="flex gap">
+      <button
+        onclick={async () => ExportStyles({propertiesToExport, urlCallback: (url) => {downloadLink = url}})}>{lang("Export")}</button
+      >
+      <button style="background-color: var(--input);" onclick={(e) => {
+        // We'll untick everything if all the checkboxes are checked, otherwise we'll tick everything.
+        let isEverythingChecked = true;
+        for (let i = 0; i < referenceItems.length; i++) {
+          if (!propertiesToExport[i]) {
+            isEverythingChecked = false;
+            break;
+          }
+        }
+        for (let i = 0; i < referenceItems.length; i++) {
+          propertiesToExport[i] = !isEverythingChecked;
+        }
+        // We'll now manually update the DOM with the new selection.
+        const container = (e.target as HTMLButtonElement).closest("div")?.previousElementSibling?.previousElementSibling;
+        if (container) {
+          for (const checkbox of container.querySelectorAll("input[type=checkbox]")) {
+            (checkbox as HTMLInputElement).checked = !isEverythingChecked;
+          }
+        }
+      }}>{lang("Toggle all checkboxes")}</button>
+    </div>
+    {:else if appSection === "newShape"}
+      <Card>
+        <AddShapeMainContent></AddShapeMainContent>
+      </Card>
+    {:else if appSection === "contentControl"}
+    <Card>
+      <CustomizeContentControl contentControl={selectedContentControlItem}></CustomizeContentControl>
+    </Card>
+    {/if}
+    {#if showAddDialog}
+      <AddStyleDialog
+        callback={async (name, type, showAsQuickStyle) => {
+          document.body.append(spinner);
+          setTimeout(async () => {
+            await Word.run(async (ctx) => {
+              const style = ctx.document.addStyle(name, type as "Paragraph");
+              style.visibility = true;
+              style.unhideWhenUsed = true;
+              style.quickStyle = showAsQuickStyle;
+              showAddDialog = false;
+            });
+            await new Promise((res) => setTimeout(res, 150));
+            await Word.run(async (ctx) => {
+              await loadStyle();
+              rerenderSelect = `SelectBlock-${Date.now()}`;
+            });
+            spinner.remove();
+          }, 1);
+        }}
+      ></AddStyleDialog>
+    {/if}
+  {#if helperProp}
+  <HelperDialogs helperType={helperProp} callback={() => (helperProp = undefined)}></HelperDialogs>
+  {/if}
+  </div>
+{/key}

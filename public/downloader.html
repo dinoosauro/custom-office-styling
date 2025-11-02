@@ -20,7 +20,14 @@
     <p>If you don't see your download, <a id="link">click here</a></p>
     <script>
         const params = new URLSearchParams(window.location.hash.substring(1));
-        document.getElementById("link").href = URL.createObjectURL(new Blob([params.get("data")]))
+        let data = params.get("data");
+        if (params.get("base64") === "1") {
+            const byteCharacters = atob(data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
+            data = new Uint8Array(byteNumbers);
+        }
+        document.getElementById("link").href = URL.createObjectURL(new Blob([data]))
         document.getElementById("link").download = params.get("name");
         document.getElementById("link").click();
     </script>

@@ -248,3 +248,14 @@ input[type=range] {
   width: 100%;
   padding: 0px 1px !important;
 }
+
+.hideDocument {
+  width: 100vw;
+  height: 100vh;
+  z-index: 3;
+  background-color: var(--background);
+  top: 100vh;
+  left: 0vh;
+  position: fixed;
+  transition: top 0.6s ease-in-out;
+}
